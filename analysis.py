@@ -5,7 +5,7 @@ import seaborn as sns
 import pandas
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, mean_squared_error
 
 df = pandas.read_csv("Real_Estate_Sales_2001-2022_GL.csv")
 
@@ -126,5 +126,7 @@ r2 = r2_score(y_test, y_pred)
 
 for actual, predicted in zip(y_test[:5], y_pred[:5]):
     print(f"Actual: {actual}, Predicted: {predicted}")
+mse = mean_squared_error(y_test, y_pred)
 
 print(f'R-squared: {r2}')
+print(f'Mean Squared Error: {mse}')

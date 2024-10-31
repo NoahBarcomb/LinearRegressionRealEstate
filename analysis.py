@@ -1,50 +1,43 @@
 from sklearn.feature_selection import f_classif
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import r2_score, mean_squared_error
+from sklearn.metrics import r2_score, mean_absolute_error
+import matplotlib.ticker as mticker
+import numpy
 
-df = pandas.read_csv("Real_Estate_Sales_2001-2022_GL.csv")
+df = pandas.read_csv("data.csv")
 
-#Question 1:
-#This dataset contains over 800,000 rows about real estate sales from 2001-2022. It has column headings like List Year Town Address Assessed Value Sale Amount Property Type Residential Type, that
-#are similar to datasets we have covered when learning about regression analysis. It has predictor variables, a good target variable, and plenty of data to accurately predict.
-#My prediction goal is to estimate the future cost of houses by using the predictor variables mentioned above
 
-#Question 2
+print(f"[!] Size of dataset before dropping duplicate/null values: {len(df.axes[0])}")
+df = df.drop_duplicates()
+print(f"[!] Size of dataset after dropping duplicate/null values: {len(df.axes[0])}")
 
-#predictor variables: Town, Date Recorded, List Year, Sales Ratio
-#target variable: Sale Amount
-#drop unwanted columns that have many n/a/null and duplicate values before removing n/a/null and duplicate values so dataset does not shrink so much
+print(df['SalePrice'].describe())
 
-unwanted_features = ['Non Use Code', 'Assessor Remarks', 'OPM remarks', 'Location', 'Serial Number', 'Address', 'Date Recorded']
+
+unwanted_features = ['Condition1', 'Condition2', 'PoolQC', 'MiscFeature', 'Alley', 'Fence', 'FireplaceQu', 'GarageCond', 'GarageYrBlt',
+                        'GarageQual', 'BsmtExposure', 'BsmtFinType2', 'BsmtFinType1', 'BsmtCond', 'GarageCars', 'MSZoning', 'OverallQual']
+
 df = df.drop(columns = unwanted_features)
 
-#drop na
-print(f"[!] Size of dataset before dropping na and duplicate values: {df.size}")
-df = df.dropna()
+print(f"[!] Number of features left after dropping unwanted columns: {len(df.dtypes)}")
 
-#drop duplicates
-df = df.drop_duplicates()
+numeric_cols = ['GrLivArea', 'LotFrontage', 'OverallCond', 'YearBuilt', 'YearRemodAdd', 'TotalBsmtSF', '1stFlrSF', '2ndFlrSF', 'MasVnrArea', 'GarageArea', 'LotArea']
+# Create subplots for boxplots
+fig, axes = plt.subplots(1, len(numeric_cols), figsize=(20, 6))
 
-print(f"[!] Size of dataset after dropping na and duplicate values: {df.size}")
+# Plot boxplots for each column
+for i, col in enumerate(numeric_cols):
+    sns.boxplot(y=df[col], ax=axes[i])
+    axes[i].set_title(f'Boxplot of {col}')
+    axes[i].set_xlabel(col)
+    axes[i].set_ylabel('Value')
 
-#boxplot to identify outliers
-numeric_cols = ['Assessed Value', 'List Year', 'Sales Ratio']
-
-fig = plt.figure(figsize = (10, 8))
-
-for i in range(len(numeric_cols)):
-    column = numeric_cols[i]
-    sub = fig.add_subplot(2,3, i + 1)
-
-    sns.boxplot(x = column, data = df)
-    
+plt.tight_layout()
 plt.show()
-
 #q1 = .25
 #q2 = .50
 #q3 = .75
@@ -54,8 +47,8 @@ q3 = df[numeric_cols].quantile(0.75)
 iqr = q3 - q1
 
 #define outlier thresholds
-lower_bound = q1 - 1.5 * iqr
-upper_bound = q3 + 1.5 * iqr
+lower_bound = q1 - 3 * iqr
+upper_bound = q3 + 3 * iqr
 
 #create a boolean mask for rows without outliers
 mask = (df[numeric_cols] >= lower_bound) & (df[numeric_cols] <= upper_bound)
@@ -63,50 +56,72 @@ mask = (df[numeric_cols] >= lower_bound) & (df[numeric_cols] <= upper_bound)
 #keep only rows without outliers
 df = df[mask.all(axis = 1)]
 
-#convert categorical into numerical
-property_unique = df['Property Type'].unique()
-residential_unique = df['Residential Type'].unique()
+print(f"[!] Size of df without outliers: {len(df.axes[0])}")
 
-mapping = {value: i for i, value in enumerate(property_unique)}
-df['Property Type'] = df['Property Type'].map(mapping)
-mapping = {value: i for i, value in enumerate(residential_unique)}
-df['Residential Type'] = df['Residential Type'].map(mapping)
+num_plots = len(numeric_cols)
+cols = 3
+rows = (num_plots // cols) + (num_plots % cols > 0)
 
-#inconsistent values
-df['Town'] = df['Town'].str.lower().str.strip()
+fig, axes = plt.subplots(rows, cols, figsize=(20, rows * 5))
 
-encoder = OneHotEncoder(sparse_output=False)
+axes = axes.flatten()
 
-# Fit and transform the 'Town' column
-encoded_town = encoder.fit_transform(df[['Town']])
-encoded_town_df = pandas.DataFrame(encoded_town, columns=encoder.get_feature_names_out(), index = df.index)
+#plot scatterplots
+for i, col in enumerate(numeric_cols):
+    sns.scatterplot(x=df[col], y=df['SalePrice'], ax=axes[i])
+    axes[i].set_title(f'SalePrice vs {col}', pad = 5)
+    axes[i].set_xlabel(col)
+    axes[i].set_ylabel('SalePrice')
+    axes[i].tick_params(axis = 'x', rotation = 45, labelsize = 10) #rotate x-axis labels and adjust size
 
-# Join the encoded columns to the original DataFrame and drop the 'Town' column
-df = df.join(encoded_town_df).drop(columns = ['Town'])
+# Remove empty subplots if any
+for i in range(num_plots, len(axes)):
+    fig.delaxes(axes[i])
 
-print("DataFrame After One-Hot Encoding:")
+plt.tight_layout()
+plt.subplots_adjust(hspace=0.5, wspace=0.3)  # Increase horizontal and vertical space between plots
+
+plt.show()
+
+#convert categorical into numerical / dummy variables
+#Land Countour brought the R-squared value up almost 1%,LandArea around 4%, BldgType 1%, Neighborhood brought MAE down around $100
+categoricals = ['LotConfig', 'PavedDrive', 'KitchenQual', 'BsmtQual', 'LandContour', 'BldgType', 'Neighborhood', 'GarageType', 'CentralAir', 'HeatingQC', 'Heating', 'GarageFinish', 'Exterior2nd', 'HouseStyle']
+
+for category in categoricals:
+    uniques = df[category].unique()
+    mapping = {value: i for i, value in enumerate(uniques)}
+    df[category] = df[category].map(mapping)
+
+
+numeric_cols = numeric_cols + categoricals
+print(numeric_cols)
 print(df.head())
 
-#Question 3
+x = df[categoricals]
+y = df['SalePrice']
 
-#feature scaling
+#ANOVA
+f_values, p_values = f_classif(x, y)
 
-scaler = StandardScaler()
-df[['Assessed Value', 'Sales Ratio']] = scaler.fit_transform(df[['Assessed Value', 'Sales Ratio']])
+to_drop = []
 
-#ANOVA Test setup & execution
+for x in range(len(p_values)):
+    print(f"[!] {categoricals[x]} Statistics")
+    print(f'ANOVA F-values: {f_values[x]}')
+    print(f'ANOVA p-values: {p_values[x]}')
+    if p_values[x] > .05:
+        print(f'[!] {categoricals[x]} is not significant!')
+        to_drop.append(categoricals[x])
 
-x = df.drop(columns = ['Sale Amount'])
-y = df['Sale Amount']
+for drop in to_drop:
+    numeric_cols.remove(drop)
 
-f_scores, p_values = f_classif(x, y)
+#scatterplot analysis
 
-#display p-values
-for feature, p_val in zip(x.columns, p_values):
-    print(f'feature: {feature}, p-value: {p_val}')
+numeric_cols.remove("MasVnrArea")
 
-significant_features = [feature for feature, p_val in zip(x.columns, p_values) if p_val < 0.05]
-x_significant = x[significant_features]
+x_significant = df[numeric_cols]
+y = df['SalePrice']
 
 #Question 4
 
@@ -114,19 +129,22 @@ x_train, x_test, y_train, y_test = train_test_split(x_significant, y, test_size 
 
 model = LinearRegression()
 
-#cross-validation
-cv_scores = cross_val_score(model, x_train, y_train, cv = 10)
-
 #train
 model.fit(x_train, y_train)
+
 
 #predict & evaluate
 y_pred = model.predict(x_test)
 r2 = r2_score(y_test, y_pred)
 
-for actual, predicted in zip(y_test[:5], y_pred[:5]):
+cv_scores = cross_val_score(model, x_significant, y, cv = 10)
+print(f'Cross-validation scores: {cv_scores}')
+print(f'Average cross-validation score: {cv_scores.mean()}')
+
+for actual, predicted in zip(y_test[:30], y_pred[:30]):
     print(f"Actual: {actual}, Predicted: {predicted}")
-mse = mean_squared_error(y_test, y_pred)
+
+mse = mean_absolute_error(y_test, y_pred)
 
 print(f'R-squared: {r2}')
-print(f'Mean Squared Error: {mse}')
+print(f'Mean Absolute Error: {mse}')
